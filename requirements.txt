@@ -1,5 +1,5 @@
 ttkbootstrap
-whisperx
+faster-whisper
 torch
 torchaudio
 pyinstaller
