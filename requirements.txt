@@ -1,0 +1,5 @@
+ttkbootstrap
+whisperx
+torch
+torchaudio
+pyinstaller
