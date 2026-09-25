@@ -1,5 +1,5 @@
 import os
-# 【關鍵設定】強制關閉 Hugging Face 符號連結，徹底解決 Windows [WinError 1314] 權限錯誤
+# 【關鍵設定】強制關閉 Hugging Face 符號連結，徹底解決 Windows 權限錯誤
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
@@ -7,11 +7,10 @@ import sys
 import threading
 import torch
 from faster_whisper import WhisperModel
-import ttkbootstrap as tb
-from ttkbootstrap.constants import *
+import tkinter as tk
 from tkinter import filedialog, messagebox, StringVar
 
-APP_NAME = "Whisper 離線影音智慧辨識與多語言工具"
+APP_NAME = "Whisper 離線影音智慧辨識工具 (極速相容版)"
 
 audio_file_path = ""
 output_folder_path = ""
@@ -24,13 +23,12 @@ def format_timecode(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 def get_model_path(model_size):
-    """優先讀取 .exe 旁 models 資料夾中的離線模型，實現 100% 斷網運行"""
+    """優先讀取 .exe 旁 models 資料夾中的離線模型"""
     if getattr(sys, 'frozen', False):
         base_dir = os.path.dirname(sys.executable)
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # 對應 faster-whisper 的快取資料夾命名規則
     folder_name = f"models--Systran--faster-whisper-{model_size}"
     local_model_dir = os.path.join(base_dir, "models", folder_name)
     
@@ -51,7 +49,7 @@ def choose_file():
     if not file_path:
         return
     audio_file_path = file_path
-    source_label.config(text=f"來源檔案：\n{os.path.basename(file_path)}")
+    source_label.config(text=f"來源檔案：{os.path.basename(file_path)}")
 
 def choose_output_folder():
     global output_folder_path
@@ -59,7 +57,7 @@ def choose_output_folder():
     if not folder_path:
         return
     output_folder_path = folder_path
-    output_label.config(text=f"輸出資料夾：\n{output_folder_path}")
+    output_label.config(text=f"輸出資料夾：{output_folder_path}")
 
 def run_process():
     global audio_file_path, output_folder_path
@@ -70,12 +68,9 @@ def run_process():
 
     model_size = model_var.get()
     selected_lang = lang_var.get().strip()
-    
-    # 如果輸入「自動偵測」或留白，則傳入 None 讓模型自己判斷
     language_param = None if selected_lang in ["auto", "自動偵測", ""] else selected_lang
 
     status_label.config(text="正在載入語音辨識模型，請稍候...")
-    progress.start(10)
     window.update_idletasks()
 
     try:
@@ -83,13 +78,15 @@ def run_process():
         compute_type = "float16" if device == "cuda" else "int8"
 
         model_path_or_name = get_model_path(model_size)
-        status_label.config(text=f"正在載入模型中...")
-        
+        status_label.config(text=f"載入模型中 (路徑: {model_path_or_name})...")
+        window.update_idletasks()
+
+        # 載入模型
         model = WhisperModel(model_path_or_name, device=device, compute_type=compute_type)
 
         status_label.config(text="正在進行語音轉文字與時間碼對齊...")
+        window.update_idletasks()
         
-        # 帶入指定的語言參數 (language)
         segments, info = model.transcribe(
             audio_file_path, 
             beam_size=5, 
@@ -100,6 +97,8 @@ def run_process():
         output_txt = os.path.join(output_folder_path, f"{base_name}_transcript.txt")
         
         status_label.config(text="正在產生帶時間碼的文字檔...")
+        window.update_idletasks()
+        
         with open(output_txt, "w", encoding="utf-8") as f:
             for segment in segments:
                 start_str = format_timecode(segment.start)
@@ -107,52 +106,59 @@ def run_process():
                 text = segment.text.strip()
                 f.write(f"[{start_str} --> {end_str}] {text}\n")
 
-        progress.stop()
         status_label.config(text="處理完成！")
-        messagebox.showinfo("成功", f"語音辨識完成！\n檢測語言: {info.language} (機率: {info.language_probability:.2f})\n帶時間碼的 TXT 檔案已儲存至：\n{output_txt}")
+        messagebox.showinfo("成功", f"語音辨識完成！\n檢測語言: {info.language}\n帶時間碼的 TXT 檔案已儲存至：\n{output_txt}")
 
     except Exception as e:
-        progress.stop()
         status_label.config(text="處理失敗")
-        messagebox.showerror("錯誤", f"過程發生錯誤：\n{str(e)}")
+        messagebox.showerror("錯誤發生", f"詳細錯誤訊息：\n{str(e)}")
 
 def start_thread():
     threading.Thread(target=run_process, daemon=True).start()
 
-# --- UI 介面設計 ---
-window = tb.Window(title=APP_NAME, themename="cosmo", size=(700, 680))
+# --- 純 Tkinter 介面設計 (極速、無相容性問題) ---
+window = tk.Tk()
+window.title(APP_NAME)
+window.geometry("600x520")
 window.resizable(False, False)
 
-tb.Label(window, text="Whisper 離線影音智慧辨識與多語言工具", font=("Microsoft JhengHei UI", 14, "bold")).pack(pady=15)
+# 標題
+title_label = tk.Label(window, text="Whisper 離線影音智慧辨識工具", font=("Microsoft JhengHei UI", 13, "bold"))
+title_label.pack(pady=15)
 
 # 檔案選擇
-tb.Button(window, text="選擇音訊或影片檔案 (MP3/WAV/MP4)", bootstyle="primary", command=choose_file, width=45).pack(pady=5)
-source_label = tb.Label(window, text="尚未選擇來源檔案", font=("Microsoft JhengHei UI", 9), bootstyle="secondary")
+btn_file = tk.Button(window, text="選擇音訊或影片檔案 (MP3/WAV/MP4)", command=choose_file, width=40, bg="#f0f0f0", font=("Microsoft JhengHei UI", 10))
+btn_file.pack(pady=5)
+source_label = tk.Label(window, text="尚未選擇來源檔案", font=("Microsoft JhengHei UI", 9), fg="gray")
 source_label.pack(pady=2)
 
 # 輸出資料夾
-tb.Button(window, text="選擇輸出資料夾", bootstyle="info", command=choose_output_folder, width=45).pack(pady=5)
-output_label = tb.Label(window, text="尚未選擇輸出資料夾", font=("Microsoft JhengHei UI", 9), bootstyle="secondary")
+btn_folder = tk.Button(window, text="選擇輸出資料夾", command=choose_output_folder, width=40, bg="#f0f0f0", font=("Microsoft JhengHei UI", 10))
+btn_folder.pack(pady=10)
+output_label = tk.Label(window, text="尚未選擇輸出資料夾", font=("Microsoft JhengHei UI", 9), fg="gray")
 output_label.pack(pady=2)
 
 # 模型選擇
-tb.Label(window, text="選擇模型大小 (需與 models 內的快取資料夾名稱相符)", font=("Microsoft JhengHei UI", 10, "bold")).pack(pady=(10, 2))
+lbl_model = tk.Label(window, text="選擇模型大小 (需與 models 內的資料夾名稱相符):", font=("Microsoft JhengHei UI", 9, "bold"))
+lbl_model.pack(pady=(15, 2))
 model_var = StringVar(value="base")
-tb.Combobox(window, textvariable=model_var, values=["tiny", "base", "small", "medium", "large-v3"], state="readonly", width=25).pack(pady=2)
+model_menu = tk.OptionMenu(window, model_var, "tiny", "base", "small", "medium", "large-v3")
+model_menu.config(width=15, font=("Microsoft JhengHei UI", 9))
+model_menu.pack(pady=2)
 
-# 語言選擇設定
-tb.Label(window, text="目標語言代碼 (例如: zh 代表中文, en 代表英文, 留白或填 auto 則自動偵測)", font=("Microsoft JhengHei UI", 10, "bold")).pack(pady=(10, 2))
-lang_var = StringVar(value="zh")  # 預設為中文
-tb.Entry(window, textvariable=lang_var, width=27).pack(pady=2)
+# 語言設定
+lbl_lang = tk.Label(window, text="目標語言代碼 (例如: zh 代表中文, en 代表英文, auto 自動偵測):", font=("Microsoft JhengHei UI", 9, "bold"))
+lbl_lang.pack(pady=(10, 2))
+lang_var = StringVar(value="zh")
+lang_entry = tk.Entry(window, textvariable=lang_var, width=20, font=("Microsoft JhengHei UI", 10), justify="center")
+lang_entry.pack(pady=2)
 
-# 狀態與進度條
-status_label = tb.Label(window, text="待命中", font=("Microsoft JhengHei UI", 11))
-status_label.pack(pady=8)
-
-progress = tb.Progressbar(window, length=500, mode="indeterminate", bootstyle="success-striped")
-progress.pack(pady=5)
+# 狀態顯示
+status_label = tk.Label(window, text="待命中", font=("Microsoft JhengHei UI", 11, "bold"), fg="blue")
+status_label.pack(pady=15)
 
 # 開始按鈕
-tb.Button(window, text="開始辨識並產出帶時間碼 TXT", bootstyle="success", command=start_thread, width=30).pack(pady=12)
+btn_start = tk.Button(window, text="開始辨識並產出帶時間碼 TXT", command=start_thread, bg="#4CAF50", fg="white", font=("Microsoft JhengHei UI", 11, "bold"), width=35, height=2)
+btn_start.pack(pady=10)
 
 window.mainloop()
