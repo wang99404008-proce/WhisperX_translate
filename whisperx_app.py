@@ -1,5 +1,5 @@
 import os
-# 【關鍵修正】強制關閉 Hugging Face 的符號連結，改用實體複製，解決 Windows 1314 權限錯誤
+# 【關鍵設定】強制關閉 Hugging Face 符號連結，徹底解決 Windows [WinError 1314] 用戶端沒有這項特殊權限問題
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
@@ -11,16 +11,35 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import filedialog, messagebox, StringVar
 
-APP_NAME = "Whisper 離線影音智慧辨識工具"
+APP_NAME = "Whisper 離線影音智慧辨識與時間碼工具"
 
 audio_file_path = ""
 output_folder_path = ""
 
 def format_timecode(seconds):
+    """將秒數轉換為清晰的時間碼格式 (HH:MM:SS)"""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+def get_model_path(model_size):
+    """優先讀取 .exe 旁 models 資料夾中的離線模型，實現 100% 斷網運行"""
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 對應 faster-whisper 的快取資料夾命名規則
+    folder_name = f"models--Systran--faster-whisper-{model_size}"
+    local_model_dir = os.path.join(base_dir, "models", folder_name)
+    
+    # 如果本機有離線模型資料夾，直接回傳該路徑
+    if os.path.exists(local_model_dir):
+        return local_model_dir
+    
+    # 若無則回傳預設名稱（在連網電腦上會自動下載，在無網電腦若無 models 會提示）
+    return model_size
 
 def choose_file():
     global audio_file_path
@@ -61,10 +80,11 @@ def run_process():
         device = "cuda" if torch.cuda.is_available() else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
 
-        status_label.config(text=f"正在使用 {device.upper()} 載入模型 ({model_size})...")
+        # 取得模型路徑（自動判斷是否使用離線本機模型）
+        model_path_or_name = get_model_path(model_size)
+        status_label.config(text=f"正在載入模型中...")
         
-        # 使用 faster-whisper 引擎，免除 pyannote 封裝錯誤
-        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        model = WhisperModel(model_path_or_name, device=device, compute_type=compute_type)
 
         status_label.config(text="正在進行語音轉文字與時間碼對齊...")
         segments, info = model.transcribe(audio_file_path, beam_size=5)
@@ -87,7 +107,7 @@ def run_process():
     except Exception as e:
         progress.stop()
         status_label.config(text="處理失敗")
-        messagebox.showerror("錯誤", f"過程發生錯誤：\n{str(e)}")
+        messagebox.showerror("錯誤", f"過程發生錯誤（若在無網環境，請確認 models 資料夾是否完整）：\n{str(e)}")
 
 def start_thread():
     threading.Thread(target=run_process, daemon=True).start()
@@ -96,7 +116,7 @@ def start_thread():
 window = tb.Window(title=APP_NAME, themename="cosmo", size=(700, 620))
 window.resizable(False, False)
 
-tb.Label(window, text="Whisper 影音智慧辨識與時間碼工具", font=("Microsoft JhengHei UI", 15, "bold")).pack(pady=20)
+tb.Label(window, text="Whisper 離線影音智慧辨識工具", font=("Microsoft JhengHei UI", 15, "bold")).pack(pady=20)
 
 tb.Button(window, text="選擇音訊或影片檔案 (MP3/WAV/MP4)", bootstyle="primary", command=choose_file, width=45).pack(pady=5)
 source_label = tb.Label(window, text="尚未選擇來源檔案", font=("Microsoft JhengHei UI", 10), bootstyle="secondary")
@@ -106,7 +126,7 @@ tb.Button(window, text="選擇輸出資料夾", bootstyle="info", command=choose
 output_label = tb.Label(window, text="尚未選擇輸出資料夾", font=("Microsoft JhengHei UI", 10), bootstyle="secondary")
 output_label.pack(pady=5)
 
-tb.Label(window, text="選擇模型大小 (建議選 base 或 small)", font=("Microsoft JhengHei UI", 10, "bold")).pack(pady=(15, 5))
+tb.Label(window, text="選擇模型大小 (需與 models 內的快取資料夾名稱相符)", font=("Microsoft JhengHei UI", 10, "bold")).pack(pady=(15, 5))
 model_var = StringVar(value="base")
 tb.Combobox(window, textvariable=model_var, values=["tiny", "base", "small", "medium", "large-v3"], state="readonly", width=25).pack(pady=5)
 
