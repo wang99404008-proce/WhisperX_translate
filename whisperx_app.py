@@ -26,17 +26,20 @@ def format_timecode(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 def get_model_path(model_size):
-    """優先讀取 .exe 旁 models 資料夾中的離線模型"""
+    """強制鎖定 .exe 旁絕對路徑的 models 資料夾"""
     if getattr(sys, 'frozen', False):
         base_dir = os.path.dirname(sys.executable)
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    folder_name = f"models--Systran--faster-whisper-{model_size}"
-    local_model_dir = os.path.join(base_dir, "models", folder_name)
+    # 直接指向固定結構
+    local_model_dir = os.path.join(base_dir, "models", f"models--Systran--faster-whisper-{model_size}")
     
-    if os.path.exists(local_model_dir):
-        return local_model_dir
+    # 嚴格檢查，如果找不到直接跳出警告視窗，絕不聯網
+    if not os.path.exists(local_model_dir):
+        raise FileNotFoundError(f"找不到離線模型資料夾！\n請確認此路徑是否存在：\n{local_model_dir}")
+    
+    return local_model_dir
     
     return model_size
 
