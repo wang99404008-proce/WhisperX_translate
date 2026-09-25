@@ -1,10 +1,17 @@
 import os
-# 【絕對離線鎖】強制封鎖任何線上存取，若無本機模型直接報錯，絕不連網
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
-os.environ["HF_DATASETS_OFFLINE"] = "1"
+import sys
+
+# 【終極對策】直接強制把 Hugging Face 的快取資料夾指向我們 `.exe` 旁邊的 models 資料夾！
+if getattr(sys, 'frozen', False):
+    current_base_dir = os.path.dirname(sys.executable)
+else:
+    current_base_dir = os.path.dirname(os.path.abspath(__file__))
+
+offline_cache_dir = os.path.join(current_base_dir, "models")
+os.environ["HF_HOME"] = offline_cache_dir
+os.environ["HUGGINGFACE_HUB_CACHE"] = offline_cache_dir
+os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFERS_OFFLINE"] = "1"
-os.environ["HF_HUB_OFFLINE"] = "1"  # 關鍵：強制 Hugging Face 進入離線模式
 
 import sys
 import threading
@@ -87,8 +94,8 @@ def run_process():
         status_label.config(text=f"載入模型中 (路徑: {model_path_or_name})...")
         window.update_idletasks()
 
-        # 載入模型
-        model = WhisperModel(model_path_or_name, device=device, compute_type=compute_type)
+        # 因為我們已經把 HF_HOME 指向了 models，它會自動去裡面找 models--Systran--faster-whisper-base
+        model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
         status_label.config(text="正在進行語音轉文字與時間碼對齊...")
         window.update_idletasks()
