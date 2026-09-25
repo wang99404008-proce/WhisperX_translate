@@ -1,4 +1,9 @@
 import os
+# 【關鍵修正】強制關閉 Hugging Face 的符號連結，改用實體複製，解決 Windows 1314 權限錯誤
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
+import sys
 import threading
 import torch
 from faster_whisper import WhisperModel
@@ -6,7 +11,7 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import filedialog, messagebox, StringVar
 
-APP_NAME = "Whisper 影音智慧辨識與時間碼工具"
+APP_NAME = "Whisper 離線影音智慧辨識工具"
 
 audio_file_path = ""
 output_folder_path = ""
