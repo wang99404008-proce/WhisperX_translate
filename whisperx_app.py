@@ -1,7 +1,10 @@
 import os
-# 【關鍵設定】強制關閉 Hugging Face 符號連結，徹底解決 Windows 權限錯誤
+# 【絕對離線鎖】強制封鎖任何線上存取，若無本機模型直接報錯，絕不連網
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
+os.environ["TRANSFERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"  # 關鍵：強制 Hugging Face 進入離線模式
 
 import sys
 import threading
